@@ -1,0 +1,67 @@
+version: '3.2'
+
+services:
+
+  proxy:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - 80:80
+    networks:
+      - ext_net
+      - proxy_net
+    volumes:
+      - nginx-dir:/etc/nginx/conf.d 
+
+  web:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    networks:
+      - proxy_net
+      - int_net 
+    volumes:
+      - php-fileweb:/var/www/html/html 
+
+  pma:
+    images: phpmyadmin:4.8.3
+    networks:
+      - proxy_net
+      - int_net 
+    volumes:
+      - phpmyadmin-data:/var/lib/docker/volumes/phpmyadmin-data
+
+ mysql:
+    build:
+      context: ./dabatase
+      dockerfile: Dockerfile
+    networks:
+      - int_net
+    secrets:
+      - psql_user
+      - psql_pass
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment: 
+      MYSQL_USER_FILE: /run/secrets/psql_user
+      MYSQL_PASSWORD_FILE: /run/secrets/psql_pass
+      - MYSQL_RANDOM_ROOT_PASSWORD=YES 
+      - MYSQL_DATABASE=dbwpkuasai
+
+volumes:
+  php-fileweb:
+  nginx-dir:
+  phpmyadmin-data:
+  mysql-data:
+  
+networks:
+  ext_net:
+  proxynet:
+  int_net:
+
+secrets:
+  psql_pass:
+    file: ./psql_pass.txt
+  psql_user:
+    file: ./psql_user.txt
