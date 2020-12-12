@@ -1,0 +1,94 @@
+version: '3.2'
+
+services:
+
+  proxy:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - 80:80
+    networks:
+      - ext_net
+      - proxy_net
+    healthcheck:
+       test: curl -f http://localhost/ || exit 0
+       interval: 1s
+       retries: 3
+    volumes:
+      - nginx-dir:/etc/nginx/conf.d
+    restart: always
+
+  web:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    networks:
+      - proxy_net
+      - int_net
+    healthcheck:
+      test: curl -f http://localhost/ || exit 0
+      interval: 1s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - php-fileweb:/var/www/html
+    restart: always
+
+  pma:
+    image: phpmyadmin/phpmyadmin:4.8.3
+    networks:
+      - proxy_net
+      - int_net
+    healthcheck:
+      test: curl -f http://localhost/ || exit 0
+      interval: 1s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - phpmyadmin-data:/var/lib/docker/volumes/phpmyadmin-data
+    environment:  
+      - PMA_HOST=mysql
+      - PMA_USER_FILE=/run/secrets/psql_user
+      - PMA_PASSWORD_FILE=/run/secrets/psql_pass
+    restart: always
+
+  mysql:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    networks:
+      - int_net
+    secrets:
+      - psql_user
+      - psql_pass
+    healthcheck:
+      test: mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD && test '0' -eq $$(ps aux | awk '{print $$11}' | grep -c -e '^mysql$$')
+      interval: 1s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment: 
+      - MYSQL_RANDOM_ROOT_PASSWORD=YES 
+      - MYSQL_DATABASE=dbkuasai
+      - MYSQL_USER_FILE=/run/secrets/psql_user
+      - MYSQL_PASSWORD_FILE=/run/secrets/psql_pass
+    restart: always
+
+volumes:
+  php-fileweb:
+  nginx-dir:
+  phpmyadmin-data:
+  mysql-data:
+
+networks:
+  ext_net:
+  proxy_net:
+  int_net:
+
+secrets:
+  psql_user:
+    file: ./psql_user.txt
+  psql_pass:
+    file: ./psql_pass.txt
